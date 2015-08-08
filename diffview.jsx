@@ -40,7 +40,6 @@ var DiffManager = (function() {
             file2_lines = [];
 
             return dmp.diff_main(file1, file2).map(function(diff) {
-                console.log(diff);
                 var out = {
                     kind: diff_kinds[diff[0]],
                     text: diff[1]
@@ -98,6 +97,7 @@ var DiffManager = (function() {
         }
     }
 })();
+
 var DiffApp = React.createClass({
     getInitialState: function() {
         return {
@@ -157,20 +157,15 @@ var FileInput = React.createClass({
 });
 
 var FileView = React.createClass({
-    handleChange: function(e) {
-        //this.props.onChange(this.props.filename, e.target.files[0]);
-    },
     render: function() {
-        var lines = this.props.content.map(function(d) {
+        var lines = this.props.content.map(function(d, idx) {
             if (d.kind == "null") {
-                return (<div>{d.text}</div>);
+                return (<div key={idx}>{d.text}</div>);
             }
-            return (<DiffView text={d.text} kind={d.kind} />);
+            return (<DiffView key={idx} text={d.text} kind={d.kind} />);
         });
-        var cx = React.addons.classSet;
-        var classes = cx("fileView");
         return (
-            <pre onChange={this.handleChange} className={classes}>
+            <pre onChange={this.handleChange} className="fileView">
                 {lines}
             </pre>
         );
@@ -179,9 +174,9 @@ var FileView = React.createClass({
 
 var DiffsList = React.createClass({
     render: function() {
-        var diffnodes = this.props.diffs.map(function(d) {
+        var diffnodes = this.props.diffs.map(function(d, idx) {
             return (
-                <DiffView text={d.text} kind={d.kind} />
+                <DiffView key={idx} text={d.text} kind={d.kind} />
             );
         });
         return (<pre className="diffsList">
@@ -192,8 +187,7 @@ var DiffsList = React.createClass({
 
 var DiffView = React.createClass({
     render: function() {
-        var cx = React.addons.classSet;
-        var classes = cx("diffView", "diff-"+this.props.kind);
+        var classes = "diffView diff-"+this.props.kind;
         return (<span className={classes}>{this.props.text}</span>)
     }
 })
