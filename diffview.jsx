@@ -1,5 +1,15 @@
 "use strict";
 
+String.prototype.repeat = function(count) {
+    if (count < 1) return '';
+    var result = '', pattern = this.valueOf();
+    while (count > 1) {
+        if (count & 1) result += pattern;
+        count >>= 1, pattern += pattern;
+    }
+    return result + pattern;
+};
+
 var DiffManager = (function() {
     var file1 = null;
     var file2 = null;
@@ -8,6 +18,8 @@ var DiffManager = (function() {
     diff_kinds[-1] = "delete";
     diff_kinds[0] = "same";
     diff_kinds[1] = "add";
+    var file1_lines = [];
+    var file2_lines = [];
 
     var readFile = function(file) {
         var defer = $.Deferred();
@@ -24,11 +36,42 @@ var DiffManager = (function() {
 
     var makeDiffs = function() {
         if (file1 && file2) {
+            file1_lines = [];
+            file2_lines = [];
+
             return dmp.diff_main(file1, file2).map(function(diff) {
-                return {
+                console.log(diff);
+                var out = {
                     kind: diff_kinds[diff[0]],
                     text: diff[1]
+                };
+                if (diff[0] == 0) {
+                    [file1_lines, file2_lines].forEach(function(arr) {
+                        if (arr.length > 0 && arr[arr.length-1].kind == "null" && out.text.startsWith('\n')) {
+                            arr.push({
+                                text: out.text.slice(1),
+                                kind: out.kind
+                            });
+                        }
+                        else {
+                            arr.push(out);
+                        }
+                    });
                 }
+                else {
+                    var affected = (diff[0] == 1 ? file1_lines : file2_lines);
+                    var newlines = (diff[1].match(/\n/g) || []).length;
+                    var other = (diff[0] == -1 ? file1_lines : file2_lines);
+                    if (newlines > 0) {
+                        affected.push({
+                            kind: "null",
+                            text: "\n".repeat(newlines)
+                        });
+                    }
+                    other.push(out);
+                }
+                
+                return out;
             });
         }
         else {
@@ -51,14 +94,16 @@ var DiffManager = (function() {
             return makeDiffs();
         },
         getFiles: function() {
-            return [file1, file2];
+            return [file1_lines, file2_lines];
         }
     }
 })();
 var DiffApp = React.createClass({
     getInitialState: function() {
         return {
-            diffs: []
+            diffs: [],
+            leftFile: [],
+            rightFile: []
         };
     },
     onPickFile: function(filename, file) {
@@ -78,19 +123,22 @@ var DiffApp = React.createClass({
     render: function() {
         return (
             <div className="diffApp">
-            <table>
-                <tr>
-                    <th><FileInput onChange={this.onPickFile} filename="1" /></th>
-                    <th>Diff</th>
-                    <th><FileInput onChange={this.onPickFile} filename="2" /></th>
-                </tr>
-                <tr>
-                    <td><FileView content={this.state.leftFile} filename="1" /></td>
-                    <td className="diffCell"><DiffsList diffs={this.state.diffs} /></td>
-                    <td><FileView content={this.state.rightFile} filename="2" /></td>
-                </tr>
-            </table>
-           </div>
+                <div className="row">
+                    <div className="col-sm-4 file-1">
+                        <FileInput onChange={this.onPickFile} filename="1" />
+                        <FileView content={this.state.leftFile} filename="1" />
+                    </div>
+                    <div className="col-sm-4 file-diff">
+                        <h3 className="hidden-xs">Quick Diff</h3>
+                        <span className="visible-xs-block smallTitle">Diff</span>
+                        <DiffsList diffs={this.state.diffs} />
+                    </div>
+                    <div className="col-sm-4 file-2">
+                        <FileInput onChange={this.onPickFile} filename="2" />
+                        <FileView content={this.state.rightFile} filename="2" />
+                    </div>
+                </div>
+            </div>
         );
     }
 });
@@ -101,9 +149,9 @@ var FileInput = React.createClass({
     },
     render: function() {
         return (
-            <div className="fileInput">
+            <span className="fileInput"><div className="smallTitle">File {this.props.filename}</div> 
         <input type="file" onChange={this.handleChange} />
-      </div>
+      </span>
         );
     }
 });
@@ -113,7 +161,19 @@ var FileView = React.createClass({
         //this.props.onChange(this.props.filename, e.target.files[0]);
     },
     render: function() {
-        return (<textarea onChange={this.handleChange} rows="14" cols="20" className="fileView" value={this.props.content}>{this.props.content}</textarea>);
+        var lines = this.props.content.map(function(d) {
+            if (d.kind == "null") {
+                return (<div>{d.text}</div>);
+            }
+            return (<DiffView text={d.text} kind={d.kind} />);
+        });
+        var cx = React.addons.classSet;
+        var classes = cx("fileView");
+        return (
+            <pre onChange={this.handleChange} className={classes}>
+                {lines}
+            </pre>
+        );
     }
 });
 
